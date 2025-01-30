@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOS - Snake Identification</title>
+    <link rel="stylesheet" href="./css/styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh; 
+            margin-top: 60px; 
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            width: 60%;
+        }
+
+        .upload {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .upload button {
+            width: 100%;
+            padding: 10px;
+            background-color: yellow;
+            color: black;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .upload button:hover {
+            background-color: #f7d900;
+        }
+
+        .drag-drop-area {
+            margin-top: 10px;
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .drag-drop-area:hover {
+            border-color: #007BFF;
+        }
+
+        .result {
+            width: 100%;
+            max-width: 400px;
+            margin-top: 5px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #video-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #videoPreview {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        #captureButton {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        #captureButton:hover {
+            background-color: #0056b3;
+        }
+
+        #label-container {
+            margin-top: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #333;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            margin-bottom: 5px;
+        }
+        .header .logo span {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .header .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        .header .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .header .nav-links a:hover {
+            background-color: #444; 
+            border-radius: 4px;
+        }
+        
+
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span>SnakeShield</span>
+        </div>
+        <div class="nav-links">
+            <a href="/profile">Profile</a>
+            <a href="/sos">SOS</a>
+            <a href="/identify">Identify</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="upload">
+            <h2>Upload or Click Image</h2>
+            <button onclick="document.getElementById('imageUpload').click()">Upload Image</button>
+            <input type="file" id="imageUpload" style="display: none;" accept="image/*" onchange="handleImageUpload(event)">
+            <br><br>
+            <button onclick="startCamera()">Click Photo</button>
+            <br><br>
+            <div class="drag-drop-area" id="drag-drop-area" ondrop="handleDrop(event)" ondragover="allowDrop(event)">
+                <p>Drag & Drop Image Here</p>
+            </div>
+            <br>
+            <img id="imagePreview" style="max-width: 100%; display: none;" />
+        </div>
+
+        <div class="result">
+            <h2>Result</h2>
+            <div id="label-container"></div> 
+        </div>
+
+        <div id="video-container">
+            <video id="videoPreview" autoplay></video>
+            <button id="captureButton" onclick="capturePhoto()">Capture</button>
+        </div>
+    </div>
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+    <script>
+        const URL = 'https://teachablemachine.withgoogle.com/models/jm3Yk9_El/'; 
+        let model, labelContainer, maxPredictions;
+
+        async function init() {
+            const modelURL = URL + 'model.json';
+            const metadataURL = URL + 'metadata.json';
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();  
+
+            labelContainer = document.getElementById('label-container');
+            labelContainer.innerHTML = ''; 
+        }
+
+       
+        async function predict() {
+            var image = document.getElementById('imagePreview');
+            const predictions = await model.predict(image, false);
+
+            const sortedPredictions = predictions.sort((a, b) => b.probability - a.probability);
+
+            const mostProbableClass = sortedPredictions[0];
+
+            labelContainer.innerHTML = `${mostProbableClass.className}: ${mostProbableClass.probability.toFixed(2)}`;
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const imagePreview = document.getElementById('imagePreview');
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                init().then(() => {
+                    predict(); 
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const imagePreview = document.getElementById('imagePreview');
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                init().then(() => {
+                    predict(); 
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Start the camera to stream video
+        function startCamera() {
+            const video = document.getElementById('videoPreview');
+            const videoContainer = document.getElementById('video-container');
+            const captureButton = document.getElementById('captureButton');
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                    video.srcObject = stream;
+                    videoContainer.style.display = 'block'; 
+                    captureButton.style.display = 'block'; 
+                })
+                .catch((err) => {
+                    console.error('Error accessing camera:', err);
+                });
+        }
+
+        
+        function capturePhoto() {
+            const video = document.getElementById('videoPreview');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const imagePreview = document.getElementById('imagePreview');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/png');
+
+            imagePreview.src = imageData;
+            imagePreview.style.display = 'block'; 
+
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+
+            document.getElementById('video-container').style.display = 'none';
+            document.getElementById('captureButton').style.display = 'none';
+
+            init().then(() => {
+                predict(); 
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
